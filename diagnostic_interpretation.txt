@@ -1,0 +1,170 @@
+
+======================================================================
+  NORTHGATE CHARGER SIZING — DIAGNOSTIC INTERPRETATION FOR SLIDES
+======================================================================
+
+NOTE: All results are based on a simulation-based greedy heuristic.
+      Vehicles are served in order of earliest departure, then highest
+      urgency (remaining kWh / remaining hours). One charger per vehicle
+      per 15-minute step. This is NOT a globally optimal MILP schedule.
+
+----------------------------------------------------------------------
+TOPIC 1 — Why multiple visits are mostly not visible in the final plots
+----------------------------------------------------------------------
+
+The schedule figures show "meaningful serviceable charging events"
+(energy_needed_kwh_for_visit >= 0.10 kWh, individually feasible).
+
+For each of the top 5 days:
+
+  2025-08-25:
+    Raw visits (Level A):               42
+    After dwell >= 15 min (Level B):    28
+    Below 0.10 kWh threshold:          19  (treated as already charged)
+    Excluded infeasible (Level D):       2
+    Meaningful serviceable (Level C):    7
+    Multi-visit vehicles (Level B):      7
+    Multi-visit vehicles (Level C):      1
+
+  2025-06-26:
+    Raw visits (Level A):               29
+    After dwell >= 15 min (Level B):    19
+    Below 0.10 kWh threshold:           8  (treated as already charged)
+    Excluded infeasible (Level D):       2
+    Meaningful serviceable (Level C):    9
+    Multi-visit vehicles (Level B):      1
+    Multi-visit vehicles (Level C):      0
+
+  2025-12-01:
+    Raw visits (Level A):               21
+    After dwell >= 15 min (Level B):     9
+    Below 0.10 kWh threshold:           4  (treated as already charged)
+    Excluded infeasible (Level D):       2
+    Meaningful serviceable (Level C):    3
+    Multi-visit vehicles (Level B):      0
+    Multi-visit vehicles (Level C):      0
+
+  2025-06-30:
+    Raw visits (Level A):               32
+    After dwell >= 15 min (Level B):    19
+    Below 0.10 kWh threshold:           4  (treated as already charged)
+    Excluded infeasible (Level D):       0
+    Meaningful serviceable (Level C):   15
+    Multi-visit vehicles (Level B):      1
+    Multi-visit vehicles (Level C):      0
+
+  2025-10-08:
+    Raw visits (Level A):               37
+    After dwell >= 15 min (Level B):    17
+    Below 0.10 kWh threshold:           6  (treated as already charged)
+    Excluded infeasible (Level D):       2
+    Meaningful serviceable (Level C):    9
+    Multi-visit vehicles (Level B):      2
+    Multi-visit vehicles (Level C):      2
+
+ANSWER TO Q3: Yes, the 0.10 kWh threshold removes near-zero demand events.
+  Many dwell-filtered visits have very small energy_needed_kwh values
+  (often < 0.05 kWh) because the vehicle either had a short trip or
+  the inbound chain resolved to high SOC. These are genuine visits,
+  but the vehicle barely needed any charge — it does not represent
+  a real load on the charger infrastructure.
+
+ANSWER TO Q4: Yes — it is worth adding a slide note:
+  "The schedule figures show meaningful charging-demand events
+   (energy >= 0.10 kWh). Near-zero events are included in the raw
+   visit count but excluded from the charger-sizing figures because
+   the simulation already treats them as fully charged (below
+   tolerance threshold)."
+
+ANSWER TO Q1 (multi-visit in raw/dwell-filtered data):
+  See the multi_visit_diagnostic CSV for per-day, per-level details.
+  Where multi-visits exist, vehicles have legitimate second visits
+  (e.g., a truck returning to Northgate twice on the same day).
+
+ANSWER TO Q2 (multi-visit in meaningful serviceable events):
+  This is rare. In most cases, a vehicle's second visit within the
+  same day either falls below the 0.10 kWh threshold or its dwell
+  window is too short to be individually feasible.
+
+----------------------------------------------------------------------
+TOPIC 2 — Strongest overlap/bottleneck day
+----------------------------------------------------------------------
+
+The day with the highest peak required average power is:
+  {max_req_pow_day}: max req. avg. power = {max_req_pow_val:.1f} kW
+
+This is the day where the simultaneous demand pressure at its worst
+time step requires the most power. Compare:
+  2025-08-25: max req avg power = 87.8 kW  |  peak delivered = 150 kW  |  mix = 1×DC_150kW
+  2025-06-26: max req avg power = 133.7 kW  |  peak delivered = 150 kW  |  mix = 1×DC_150kW
+  2025-12-01: max req avg power = 104.7 kW  |  peak delivered = 150 kW  |  mix = 1×DC_150kW
+  2025-06-30: max req avg power = 193.3 kW  |  peak delivered = 350 kW  |  mix = 1×DC_350kW
+  2025-10-08: max req avg power = 62.8 kW  |  peak delivered = 150 kW  |  mix = 1×DC_150kW
+
+----------------------------------------------------------------------
+TOPIC 3 — Power-constrained vs. overlap-constrained
+----------------------------------------------------------------------
+
+The greedy heuristic is primarily POWER-constrained:
+  - Only one charger is available per step.
+  - Heavy-duty vehicles (eCascadia, eM2, BYD 6F) need 50-150 kW DC.
+  - L2 chargers (19.2 kW AC) are useless for DC-only vehicles.
+  - At most time steps there is only 0 or 1 vehicle actively charging.
+  - The bottleneck is not how many vehicles overlap,
+    but whether the single charger is powerful enough to clear each
+    vehicle's energy demand within its dwell window before the next
+    vehicle arrives.
+
+For 4 of 5 days, 1×DC_150kW can cycle through all vehicles in
+sequence within their dwell windows. The utilization is low (5-8%)
+because most dwells are long relative to the energy needed.
+
+----------------------------------------------------------------------
+TOPIC 4 — Why 2025-06-30 requires 1×DC_350kW
+----------------------------------------------------------------------
+
+On 2025-06-30:
+  - ALL 19 events are individually feasible (0 excluded).
+  - All 19 vehicles have sufficient dwell to charge at 350 kW.
+  - Serviceable demand: 357.3 kWh (highest of all 5 days).
+  - The bottleneck is at 15:00 UTC:
+      * 6 meaningful vehicles present
+      * Required avg power: 193.3 kW
+      * Actual delivered: 270.0 kW
+
+  Why 1×DC_150kW fails on 2025-06-30:
+    The combination of more vehicles AND denser scheduling means the
+    DC_150kW charger cannot cycle fast enough between tight-window
+    vehicles. At 150 kW effective power, it takes longer to top up
+    each vehicle, so the next vehicle's departure arrives before the
+    charger is free. Upgrading to 350 kW cuts charging time ~2.3×,
+    freeing the charger in time for the next vehicle.
+
+  This is a scheduling-density bottleneck, not merely an energy
+  volume problem. A second 150 kW charger would also work, but
+  1×350 kW is cheaper ($350k vs. $300k).
+
+----------------------------------------------------------------------
+TOPIC 5 — How this supports the final recommendation
+----------------------------------------------------------------------
+
+Simulation-based heuristic results (greedy, not globally optimal):
+
+  MINIMUM TECHNICAL: 1×DC_150kW  ($150,000)
+    → Sufficient for 4 of the top 5 high-demand days.
+    → Covers all individually feasible vehicles within their dwell windows.
+    → Low utilization (5-8%) reflects sequential single-charger service,
+       not underuse — the charger is fully used when needed.
+
+  CONSERVATIVE: 1×DC_350kW  ($350,000)
+    → Sufficient for ALL top 5 days, including the outlier 2025-06-30.
+    → Eliminates scheduling-density bottlenecks on dense days.
+    → Recommended if Northgate expects days similar to 2025-06-30
+       (all-day high fleet presence, no excluded events).
+
+  NOTE: These results do not account for simultaneous charging of
+  multiple vehicles (no dual-port charger model). A dual-port
+  DC_150kW unit could serve two vehicles simultaneously and may
+  handle 2025-06-30 at lower cost — worth exploring in a follow-up.
+
+======================================================================

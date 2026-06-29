@@ -1,0 +1,13 @@
+# Northgate EV Charging Optimizer — Python dependencies
+# Install with:  pip install -r requirements.txt
+#
+# Gurobi (gurobipy) requires a separate license from gurobi.com.
+# Academic/research licenses are free.  Install the full Gurobi package first,
+# then activate your license with:  grbgetkey <your-key>
+
+pandas>=1.5
+numpy>=1.23
+matplotlib>=3.6
+openpyxl>=3.0
+gurobipy>=10.0
+pytz

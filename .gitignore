@@ -1,0 +1,90 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+.env
+.venv/
+venv/
+env/
+
+# Output folders (generated data - not source code)
+exact_milp_outputs*/
+fixed_charger_outputs/
+northgate_optimizer_transfer/
+northgate_presentation/
+presentation/
+scenario_outputs/
+site_outputs/
+xos_grid_charging_outputs/
+xos_mobile_outputs/
+xos_per_unit_outputs/
+xos_trip_outputs/
+
+# Mobile charger files (XOS Hub and Kempower — excluded from this repo)
+xos_hub_soc_simulation.py
+xos_mobile_charging_analysis.py
+xos_trip_simulation.py
+xos_grid_charging_analysis.py
+xos_combined_figure.py
+xos_per_unit_plots.py
+generate_xos_presentation.py
+run_xos_only.py
+charger_costs_xos_hub.py
+kempower_milp_sizing.py
+charger_costs_kempower_dgs.py
+run_kempower_pipeline.py
+generate_kempower_northgate_presentation.py
+generate_mobile_dcfc_slides.py
+_test_kempower_one_day.py
+
+# Large data files / raw datasets
+Geotab_Zone_to_Zone_Dataset/
+Geotab_Zone_to_Zone_Dataset.zip
+*.zip
+
+# Generated outputs (CSVs, Excel, images) - keep requirements.txt
+*.csv
+*.xlsx
+*.png
+*.pdf
+*.pptx
+
+# Log files
+*.log
+*_log.txt
+*_err.txt
+run_multi_day_log.txt
+run_multi_day_err.txt
+run_multi_day_top30_log.txt
+run_multi_day_top30_err.txt
+run_top5_log.txt
+run_top5_err.txt
+run_top10_new_log.txt
+run_top10_new_err.txt
+screen_log.txt
+screen_err.txt
+sim_log_*.txt
+fixed_charger_run_log.txt
+
+# Windows shortcuts
+*.lnk
+
+# Cache files
+_fresno_z2z_cache.csv
+_glendale_z2z_cache.csv
+_northgate_z2z_cache.csv
+_san_diego_z2z_cache.csv
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Jupyter
+.ipynb_checkpoints/
