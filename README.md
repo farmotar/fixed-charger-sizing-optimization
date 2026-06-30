@@ -2,7 +2,7 @@
 
 A Mixed-Integer Linear Programming (MILP) tool for sizing fixed DC Fast Chargers (DCFC) at EV fleet maintenance stations. Given real fleet telematics data, it finds the **optimal number and type of chargers** that minimize total daily cost while ensuring every vehicle gets the energy it needs within its dwell window.
 
-Developed for the **Caltrans District 6 EV Fleet Electrification** study.
+Developed for the **Caltrans EV Fleet Electrification** study.
 
 ---
 
