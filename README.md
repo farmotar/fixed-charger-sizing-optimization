@@ -39,12 +39,12 @@ This tool finds the exact answer by solving an optimization problem that simulta
 
 | Type | Power | Purchase Cost | Install Cost | Daily Cost (amortized) |
 |------|-------|--------------|--------------|------------------------|
-| Level 2 AC | 19.2 kW | $11,000 | $14,000 | $9.12/day |
-| Low-power DCFC | 50 kW | $50,000 | $50,000 | $35.23/day |
-| Medium-power DCFC | 150 kW | $90,000 | $110,000 | $69.10/day |
-| High-power DCFC | 350 kW | $160,000 | $225,000 | $129.52/day |
+| Level 2 AC | 19.2 kW | $11,000 | $14,000 | $8.36/day |
+| Low-power DCFC | 50 kW | $50,000 | $50,000 | $32.19/day |
+| Medium-power DCFC | 150 kW | $90,000 | $110,000 | $63.01/day |
+| High-power DCFC | 350 kW | $160,000 | $225,000 | $117.80/day |
 
-Daily cost is amortized over a **9-year equipment lifespan** using the formula:
+Daily cost is amortized over a **10-year equipment lifespan** using the formula:
 
 ```
 C_daily = [(purchase + install) / (life_years × 12) + annual_O&M / 12] / 30.42

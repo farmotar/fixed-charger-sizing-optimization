@@ -4,10 +4,10 @@ fixed_charger_analysis_all_sites.py
 Fixed DCFC charger optimization and worst-day analysis for all 4 Caltrans sites.
 
 Cost assumptions (finalized):
-  Level 2 AC   (19.2 kW)  purchase=$11k  install=$14k  life=9yr  O&M=$550/yr   => $9.12/day
-  Low-power DC  (50 kW)   purchase=$50k  install=$50k  life=9yr  O&M=$1,750/yr => $35.23/day
-  Medium-power DC(150 kW) purchase=$90k  install=$110k life=9yr  O&M=$3,000/yr => $69.10/day
-  High-power DC (350 kW)  purchase=$160k install=$225k life=9yr  O&M=$4,500/yr => $129.52/day
+  Level 2 AC   (19.2 kW)  purchase=$11k  install=$14k  life=10yr  O&M=$550/yr   => $8.36/day
+  Low-power DC  (50 kW)   purchase=$50k  install=$50k  life=10yr  O&M=$1,750/yr => $32.19/day
+  Medium-power DC(150 kW) purchase=$90k  install=$110k life=10yr  O&M=$3,000/yr => $63.01/day
+  High-power DC (350 kW)  purchase=$160k install=$225k life=10yr  O&M=$4,500/yr => $117.80/day
 
 Workflow
 --------
@@ -76,7 +76,7 @@ CHARGER_SPECS: dict[str, dict] = {
         "purchase_cost": 11_000,
         "install_cost":  14_000,
         "annual_maint":     550,
-        "life_years":         9,
+        "life_years":        10,
         "label":        "Level 2 AC (19.2 kW)",
         "short":        "L2 19.2kW",
     },
@@ -86,7 +86,7 @@ CHARGER_SPECS: dict[str, dict] = {
         "purchase_cost": 50_000,
         "install_cost":  50_000,
         "annual_maint":   1_750,
-        "life_years":         9,
+        "life_years":        10,
         "label":        "Low-power DCFC (50 kW)",
         "short":        "DC 50kW",
     },
@@ -96,7 +96,7 @@ CHARGER_SPECS: dict[str, dict] = {
         "purchase_cost": 90_000,
         "install_cost": 110_000,
         "annual_maint":   3_000,
-        "life_years":         9,
+        "life_years":        10,
         "label":        "Medium-power DCFC (150 kW)",
         "short":        "DC 150kW",
     },
@@ -106,7 +106,7 @@ CHARGER_SPECS: dict[str, dict] = {
         "purchase_cost": 160_000,
         "install_cost":  225_000,
         "annual_maint":    4_500,
-        "life_years":          9,
+        "life_years":         10,
         "label":        "High-power DCFC (350 kW)",
         "short":        "DC 350kW",
     },

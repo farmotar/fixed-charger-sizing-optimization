@@ -834,7 +834,7 @@ def slide_conclusions(story):
         sp(8),
         banner("  Cost Assumptions", HexColor("#EEF4FB"), "body"),
         sp(4),
-        p("Updated to finalized table values (purchase + installation-only costs, 9-year "
+        p("Updated to finalized table values (purchase + installation-only costs, 10-year "
           "lifespan for all charger types). Applied uniformly across all 4 sites.", "small"),
     ]
 
