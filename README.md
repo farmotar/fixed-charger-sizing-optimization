@@ -107,24 +107,10 @@ charger_sizing_test/
 ├── build_northgate_representative_day.py   Build a synthetic representative
 │                                            day for testing.
 │
-├── ── FIGURE AND REPORT BUILDERS ────────────────────────────────────────────
-│
-├── build_appendix_a.py          Generate Appendix A cost-breakdown figures
-│                                (one per site).
-│
-├── build_appendix_a_v2.py       Updated figure builder with additional panels.
-│
-├── build_presentation_figures.py   Publication-style figures for quarterly
-│                                   report (output → appendix_a_figures/).
-│
 ├── ── SUPPORTING / ONE-OFF SCRIPTS ──────────────────────────────────────────
 │
-├── _reprice_glendale_xos_pge.py      Reprice Glendale XOS results under
-│                                     PG&E BEV-2 rate (was run once).
-├── _rerun_kempower_fresno_glendale.py  Re-run Kempower MILP for Fresno and
-│                                       Glendale with corrected rates.
-├── _rerun_kempower_glendale_pge.py   Glendale-only Kempower rerun (PG&E proxy).
-├── _run_glendale_smud.py             Glendale run under SMUD rate (archived).
+│   (XOS Hub and Kempower mobile charger scripts belong in the Task 4482
+│    repository — they are not part of this fixed-charger sizing repo.)
 │
 ├── ── DIAGNOSTICS ───────────────────────────────────────────────────────────
 │
@@ -148,10 +134,7 @@ charger_sizing_test/
 │
 ├── appendix_a_figures/
 │   ├── {site}_cost_breakdown.png              Stacked cost bar chart per site
-│   ├── {site}_daily_cost.png                  Cost over the analysis year
-│   ├── xos_{site}_*.png                       XOS mobile charger comparisons
-│   ├── kmp_{site}_*.png                       Kempower mobile charger figures
-│   └── presentation_style/                    High-res figures for the report
+│   └── {site}_daily_cost.png                  Cost over the analysis year
 │
 ├── ── CONFIGURATION ─────────────────────────────────────────────────────────
 │
