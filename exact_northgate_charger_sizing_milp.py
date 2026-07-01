@@ -49,6 +49,7 @@ from typing import Dict, List, Tuple
 # Caltrans Q3 FY2025/26 cost set (replaces build_charger_specs defaults)
 sys.path.insert(0, str(Path(__file__).parent))
 from charger_costs_caltrans import build_charger_specs_caltrans
+import utility_rates as ur
 
 import numpy as np
 import pandas as pd
@@ -93,11 +94,17 @@ C_ENERGY_NONSUMMER_OFFSAVER = 0.0888   # every day 9 a.m.-4 p.m., non-summer
 C_ENERGY_NONSUMMER_OFFPEAK  = 0.1264   # all other non-summer hours
 SMUD_TZ                     = "America/Los_Angeles"
 
+# --- Site selector (patched externally by scenario_runner.run_kempower_only) ---
+# Controls which utility's rates (energy + demand/subscription) feed the MILP
+# objective. Defaults to Northgate/SMUD for standalone runs of this script.
+RATE_SITE = "northgate"
+
 # --- Gurobi solver parameters ---
 GUROBI_TIME_LIMIT    = 3600    # seconds
 GUROBI_MIP_GAP       = 0.05   # 5 % optimality gap (constant-power model is harder to solve)
 GUROBI_THREADS       = 0       # 0 = use all available cores
 GUROBI_OUTPUT_FLAG   = 1
+GUROBI_MIP_FOCUS     = 1       # 0=balanced 1=feasibility-first 2=opt-first 3=bound-first
 
 # --- Charger count upper bounds (keep the search space manageable) ---
 CHARGER_UPPER_BOUNDS = {
@@ -335,24 +342,32 @@ def build_time_grid(
 
 
 def smud_energy_rates(time_grid: list) -> list:
-    """Return per-step SMUD C&I 21-299kW energy rate ($/kWh) for each UTC timestamp."""
-    rates = []
-    for t in time_grid:
-        t_loc      = t.tz_convert(SMUD_TZ)
-        hour       = t_loc.hour + t_loc.minute / 60
-        is_summer  = t_loc.month in (6, 7, 8, 9)
-        is_weekday = t_loc.weekday() < 5
-        is_peak_hr = 16.0 <= hour < 21.0
-        if is_summer:
-            rate = C_ENERGY_SUMMER_PEAK if (is_weekday and is_peak_hr) else C_ENERGY_SUMMER_OFFPEAK
-        elif is_weekday and is_peak_hr:
-            rate = C_ENERGY_NONSUMMER_PEAK
-        elif 9.0 <= hour < 16.0:
-            rate = C_ENERGY_NONSUMMER_OFFSAVER
-        else:
-            rate = C_ENERGY_NONSUMMER_OFFPEAK
-        rates.append(rate)
-    return rates
+    """Return per-step site-specific energy rate ($/kWh) for each UTC timestamp.
+
+    Despite the name (kept for call-site compatibility), this delegates to
+    `utility_rates.energy_rate_fn(RATE_SITE)` -- SMUD for Northgate/Glendale
+    (placeholder), PG&E BEV-2 for Fresno, SDG&E EV-HP for San Diego.
+    """
+    rate_fn = ur.energy_rate_fn(RATE_SITE)
+    return [rate_fn(t) for t in time_grid]
+
+
+def site_capacity_charge_rates(site: str = None) -> Tuple[float, float]:
+    """Return (c_demand_global, c_demand_peak_win) $/kW-month for the MILP objective.
+
+    SMUD / GWP (placeholder): true two-tier demand charge (global + peak-window).
+    PG&E BEV-2 / SDG&E EV-HP: single subscription $/kW-month, no separate
+    peak-window component -- modeled as c_demand_global with c_demand_peak_win=0.
+    """
+    site = site or RATE_SITE
+    util = ur.SITE_UTILITY[site]
+    if util in ("smud", "gwp"):
+        return ur._SMUD_DEMAND_GLOBAL, ur._SMUD_DEMAND_PEAK_WIN
+    if util == "pge_bev2":
+        return ur._PGE_SUBSCRIPTION, 0.0
+    if util == "sdge_evhp":
+        return ur._SDGE_SUBSCRIPTION, 0.0
+    raise ValueError(f"Unknown utility for site {site!r}: {util!r}")
 
 
 # ============================================================
@@ -610,6 +625,7 @@ def solve_with_gurobi(
     model.Params.MIPGap      = GUROBI_MIP_GAP
     model.Params.Threads     = GUROBI_THREADS
     model.Params.OutputFlag  = GUROBI_OUTPUT_FLAG
+    model.Params.MIPFocus    = GUROBI_MIP_FOCUS
 
     # ---- Decision variables ----
 
@@ -1941,9 +1957,16 @@ def main(charger_specs_override: dict | None = None,
         output).  Used by scenario_runner to apply the multi-day dwell rule
         before passing events to the solver.
     """
+    global C_DEMAND_GLOBAL, C_DEMAND_PEAK_WIN
+
     print("=" * 70)
     print("Northgate EV Charging Infrastructure -- Exact MILP Optimizer")
     print("=" * 70)
+    print(f"[INFO] RATE_SITE = {RATE_SITE!r} (utility={ur.SITE_UTILITY[RATE_SITE]!r})")
+
+    # Site-specific demand/subscription rate -> objective function coefficients.
+    # (Energy rate is handled inside smud_energy_rates(), called per-solver below.)
+    C_DEMAND_GLOBAL, C_DEMAND_PEAK_WIN = site_capacity_charge_rates(RATE_SITE)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -1988,12 +2011,14 @@ def main(charger_specs_override: dict | None = None,
         sol = solve_with_gurobi(
             events_df, time_grid, charger_specs, daily_capex,
             P_eff, feasible_keys, E, available_times,
+            c_demand_global=C_DEMAND_GLOBAL, c_demand_peak_win=C_DEMAND_PEAK_WIN,
             lambda_energy_error=LAMBDA_ENERGY_ERROR,
         )
     else:
         sol = solve_with_pyomo_highs(
             events_df, time_grid, charger_specs, daily_capex,
             P_eff, feasible_keys, E, available_times,
+            c_demand_global=C_DEMAND_GLOBAL, c_demand_peak_win=C_DEMAND_PEAK_WIN,
             lambda_energy_error=LAMBDA_ENERGY_ERROR,
         )
 

@@ -877,6 +877,13 @@ def run_kempower_only(
     milp.OUTPUT_DIR           = output_dir
     milp.CHARGER_UPPER_BOUNDS = KEMPOWER_UB
 
+    # Site-specific utility rates feed the MILP objective (energy + demand/
+    # subscription terms) -- map the display label to the utility_rates.py
+    # site key ("Fresno" -> "fresno", "San Diego" -> "san_diego", ...).
+    import utility_rates as _ur
+    site_key = site_label.lower().replace(" ", "_")
+    milp.RATE_SITE = site_key if site_key in _ur.SITE_UTILITY else "northgate"
+
     print(f"\n{'='*70}")
     print(f"  SCENARIO B: Kempower-only")
     print(f"  Site     : {site_label}")

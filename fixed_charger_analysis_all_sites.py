@@ -15,17 +15,17 @@ Phase 1 -- Full-year simulation
   For every day x every charger configuration x every site run a greedy simulation
   and collect service metrics + daily cost.
 
-Phase 2 -- Site-level optimal config selection
-  For each site choose the configuration that achieves the best service rate at
-  minimum daily cost (ties broken by energy served %).
+Phase 2 -- Worst-day ranking (demand-based)
+  Rank ALL operating days by total vehicle energy demanded (kWh), worst first.
+  Energy demanded is config-independent — it reflects how hard the day is
+  regardless of which charger is installed.
 
-Phase 3 -- Worst-day ranking
-  Using the site's selected configuration, rank all days by total daily cost.
-  Select the 10 highest-cost days per site.
+Phase 3 -- Select 10 worst days
+  Take the 10 highest-demand days per site.
 
-Phase 4 -- Worst-day configuration comparison
-  For each of the 10 worst days, report results for ALL configurations so the
-  reader can see how each option would have performed on a hard day.
+Phase 4 -- Config selection
+  For those 10 worst days find which charger configuration achieves the highest
+  average vehicle service rate.  That config is the site recommendation.
 
 Phase 5 -- Output
   Per-site CSV tables, worst-day detail tables, and a cross-site summary report.
@@ -43,6 +43,9 @@ import pandas as pd
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+sys.path.insert(0, str(Path(r"D:\Geotab_EV_Parameters\charger_sizing_test")))
+import utility_rates as ur
+
 # -- Paths ----------------------------------------------------------------------
 BASE_DIR = Path(r"D:\Geotab_EV_Parameters\charger_sizing_test")
 OUT_DIR  = BASE_DIR / "fixed_charger_outputs"
@@ -52,21 +55,31 @@ DT_MINUTES     = 5
 DT_HOURS       = DT_MINUTES / 60.0
 ETA            = 0.90          # grid-to-battery charging efficiency
 ENERGY_TOL     = 0.05          # kWh -- below this counts as "unserved"
-SMUD_TZ        = "America/Los_Angeles"
 DAYS_PER_MONTH = 30.42
 
-# -- SMUD C&I Secondary 21-299 kW TOD energy rates ($/kWh) ---------------------
-C_ENERGY_SUMMER_PEAK        = 0.2341   # weekday 4-9 pm, Jun-Sep
-C_ENERGY_SUMMER_OFFPEAK     = 0.1215
-C_ENERGY_NONSUMMER_PEAK     = 0.1477   # weekday 4-9 pm, Oct-May
-C_ENERGY_NONSUMMER_OFFSAVER = 0.0888   # 9 am-4 pm, Oct-May
-C_ENERGY_NONSUMMER_OFFPEAK  = 0.1264
+# -- Site-specific rate helpers -------------------------------------------------
+def _site_rate_fns(site: str):
+    """Return (energy_rate_fn, is_peak_win_fn, demand_fn) for a site.
+    demand_fn(p_max_kw, p_peak_win_kw) -> (dem_global_monthly$, dem_peak_win_monthly$)
+    """
+    util = ur.SITE_UTILITY.get(site, "smud")
+    energy_fn   = ur._ENERGY_RATE_FN[util]
+    peak_win_fn = ur._PEAK_WIN_FN[util]
 
-# -- Demand charges -------------------------------------------------------------
-C_DEMAND_GLOBAL   = 6.454    # $/kW -- global peak
-C_DEMAND_PEAK_WIN = 9.960    # $/kW -- peak during 4-9 pm
-PEAK_WIN_START_H  = 16.0
-PEAK_WIN_END_H    = 21.0
+    if util == "smud" or util == "gwp":
+        def demand_fn(p_max, p_pw):
+            return p_max * 6.454, p_pw * 9.960
+    elif util == "pge_bev2":
+        def demand_fn(p_max, p_pw):
+            return p_max * 1.91, 0.0
+    elif util == "sdge_evhp":
+        def demand_fn(p_max, p_pw):
+            return p_max * 4.81, 0.0
+    else:
+        def demand_fn(p_max, p_pw):
+            return p_max * 6.454, p_pw * 9.960
+
+    return energy_fn, peak_win_fn, demand_fn
 
 # -- Finalized charger specifications ------------------------------------------
 CHARGER_SPECS: dict[str, dict] = {
@@ -144,19 +157,8 @@ def daily_capex(ctype: str, n_units: int) -> float:
 
 
 def smud_rate(t_utc: "pd.Timestamp") -> float:
-    """Return $/kWh SMUD rate for a UTC timestamp."""
-    t_loc     = t_utc.tz_convert(SMUD_TZ)
-    hour      = t_loc.hour + t_loc.minute / 60.0
-    is_summer = t_loc.month in (6, 7, 8, 9)
-    is_wkday  = t_loc.weekday() < 5
-    is_peak   = PEAK_WIN_START_H <= hour < PEAK_WIN_END_H
-    if is_summer:
-        return C_ENERGY_SUMMER_PEAK if (is_wkday and is_peak) else C_ENERGY_SUMMER_OFFPEAK
-    if is_wkday and is_peak:
-        return C_ENERGY_NONSUMMER_PEAK
-    if 9.0 <= hour < 16.0:
-        return C_ENERGY_NONSUMMER_OFFSAVER
-    return C_ENERGY_NONSUMMER_OFFPEAK
+    """SMUD rate — kept for backwards compatibility; use _site_rate_fns() for new code."""
+    return ur.smud_energy_rate(t_utc)
 
 
 def print_capex_table() -> None:
@@ -221,7 +223,7 @@ def load_day_events(csv_path: Path) -> "pd.DataFrame | None":
 # ??????????????????????????????????????????????????????????????????????????????
 
 def greedy_simulate(events_df: "pd.DataFrame", ctype: str, n_chargers: int,
-                    config_label: str) -> dict:
+                    config_label: str, site: str = "northgate") -> dict:
     """
     Greedy first-come-first-served simulation for a fixed charger configuration.
 
@@ -252,7 +254,7 @@ def greedy_simulate(events_df: "pd.DataFrame", ctype: str, n_chargers: int,
     t_end   = events_df["departure_time"].max().ceil(f"{DT_MINUTES}min")
     time_grid = pd.date_range(t_start, t_end, freq=f"{DT_MINUTES}min", tz="UTC")
     if len(time_grid) < 2:
-        return _empty_result(events_df, ctype, n_chargers, config_label)
+        return _empty_result(events_df, ctype, n_chargers, config_label, site=site)
 
     # Vehicle state tracking
     energy_needed: dict[str, float] = {}
@@ -267,17 +269,17 @@ def greedy_simulate(events_df: "pd.DataFrame", ctype: str, n_chargers: int,
     remaining  = dict(energy_needed)
     delivered  = {v: 0.0 for v in energy_needed}
 
+    energy_fn, peak_win_fn, demand_fn = _site_rate_fns(site)
+
     dt_td         = pd.Timedelta(minutes=DT_MINUTES)
     power_profile = []
     rates_list    = []
     peak_win_pwr  = []
 
     for t in time_grid[:-1]:
-        t_next = t + dt_td
-        rate   = smud_rate(t)
-        t_loc  = t.tz_convert(SMUD_TZ)
-        hour   = t_loc.hour + t_loc.minute / 60.0
-        in_peak = PEAK_WIN_START_H <= hour < PEAK_WIN_END_H
+        t_next  = t + dt_td
+        rate    = energy_fn(t)
+        in_peak = peak_win_fn(t)
 
         # Vehicles present this slot, needing charge, and compatible
         active = [
@@ -311,8 +313,7 @@ def greedy_simulate(events_df: "pd.DataFrame", ctype: str, n_chargers: int,
     energy_cost = sum(p * DT_HOURS * r for p, r in zip(power_profile, rates_list))
     p_max       = max(power_profile) if power_profile else 0.0
     p_peak_win  = max(peak_win_pwr)  if peak_win_pwr  else 0.0
-    dem_global  = p_max      * C_DEMAND_GLOBAL
-    dem_peak    = p_peak_win * C_DEMAND_PEAK_WIN
+    dem_global, dem_peak = demand_fn(p_max, p_peak_win)
     total_cost  = cap_cost + energy_cost + dem_global + dem_peak
 
     # -- Service metrics --------------------------------------------------------
@@ -347,7 +348,7 @@ def greedy_simulate(events_df: "pd.DataFrame", ctype: str, n_chargers: int,
     }
 
 
-def _empty_result(events_df, ctype, n_chargers, config_label):
+def _empty_result(events_df, ctype, n_chargers, config_label, site="northgate"):
     n_veh = len(events_df)
     return {
         "config": config_label, "charger_type": ctype, "n_chargers": n_chargers,
@@ -365,36 +366,22 @@ def _empty_result(events_df, ctype, n_chargers, config_label):
 # OPTIMAL CONFIG SELECTION
 # ??????????????????????????????????????????????????????????????????????????????
 
-def select_optimal_config(day_rows: list[dict]) -> dict:
-    """
-    Choose the best single-charger config for a given day.
-
-    Priority:
-      1. Highest vehicles_served_pct
-      2. Lowest total_cost (tie-break on service)
-      3. Highest demand_served_pct (secondary energy metric)
-    """
-    return max(
-        day_rows,
-        key=lambda r: (
-            r["vehicles_served_pct"],
-            -r["total_cost"],
-            r["demand_served_pct"],
-        ),
-    )
-
-
 # ??????????????????????????????????????????????????????????????????????????????
 # PER-SITE ANALYSIS
 # ??????????????????????????????????????????????????????????????????????????????
 
 def analyze_site(site: str, site_label: str) -> dict:
     """
-    Run all phases for one site.  Returns a dict with:
-      all_rows       -- flat list of every (day x config) result row
-      daily_optimal  -- list of per-day optimal-config results
-      worst10        -- list of 10 worst days (by cost under optimal config)
-      selected_config-- the configuration recommended for this site
+    Run all phases for one site.
+
+    Methodology (Shima approach):
+      Phase 1: Simulate every operating day x every charger config.
+      Phase 2: Rank ALL days by total vehicle energy demanded (kWh), worst first.
+               Energy demanded is config-independent — it reflects how hard the
+               day is regardless of which charger is installed.
+      Phase 3: Take the 10 worst-demand days.
+      Phase 4: For those 10 days, find which config achieves the highest average
+               vehicle service rate.  That config is recommended for the site.
     """
     csv_stem = f"z2z_milp_events_{site}"
     csv_files = sorted(BASE_DIR.glob(f"{csv_stem}_*.csv"))
@@ -408,7 +395,6 @@ def analyze_site(site: str, site_label: str) -> dict:
         return {}
 
     all_rows: list[dict] = []
-    daily_optimal: list[dict] = []
 
     for i, csv_path in enumerate(csv_files, 1):
         m = re.search(r"(\d{4}_\d{2}_\d{2})\.csv$", csv_path.name)
@@ -420,61 +406,77 @@ def analyze_site(site: str, site_label: str) -> dict:
         if events_df is None:
             continue
 
-        day_results: list[dict] = []
         for cfg_label, ctype, n_units in CONFIGS:
-            r = greedy_simulate(events_df, ctype, n_units, cfg_label)
+            r = greedy_simulate(events_df, ctype, n_units, cfg_label, site=site)
             r["date"]       = date_str
             r["site"]       = site
             r["site_label"] = site_label
             all_rows.append(r)
-            day_results.append(r)
-
-        if day_results:
-            opt = select_optimal_config(day_results)
-            daily_optimal.append(opt)
 
         if i % 50 == 0 or i == n_files:
             pct = 100 * i / n_files
             print(f"  [{i:3d}/{n_files}]  {date_str}  ({pct:.0f}%)", flush=True)
 
-    if not daily_optimal:
+    if not all_rows:
         print("  No valid days found.")
         return {}
 
-    # -- Site-level recommended config -----------------------------------------
-    # Most frequently selected optimal config; ties broken by average cost
-    from collections import Counter
-    cfg_counts = Counter(r["config"] for r in daily_optimal)
-    top_cfg_label = cfg_counts.most_common(1)[0][0]
+    # -- Phase 2: Rank all days by vehicle energy demanded (worst first) --------
+    # Use any config's row per day — energy_demanded_kwh is the same for all configs.
+    ref_cfg = CONFIGS[0][0]   # any config; energy demanded is config-independent
+    ref_rows = [r for r in all_rows if r["config"] == ref_cfg]
+    df_days  = (pd.DataFrame(ref_rows)[["date", "energy_demanded_kwh", "n_vehicles"]]
+                .sort_values("energy_demanded_kwh", ascending=False)
+                .reset_index(drop=True))
+    df_days["rank"] = df_days.index + 1
 
-    # Confirm: of all rows for this config, compute aggregate service
-    top_rows = [r for r in all_rows if r["config"] == top_cfg_label]
-    total_veh = sum(r["n_vehicles"] for r in top_rows)
+    # -- Phase 3: 10 worst-demand days -----------------------------------------
+    worst10_dates = df_days["date"].head(10).tolist()
+    worst10_rows  = [r for r in all_rows if r["date"] in worst10_dates]
+
+    # -- Phase 4: Best config on those 10 worst days (highest avg vehicle svc) --
+    cfg_labels = [c[0] for c in CONFIGS]
+    best_cfg   = None
+    best_svc   = -1.0
+    cfg_svc    = {}
+    for cfg_label in cfg_labels:
+        cfg_worst = [r for r in worst10_rows if r["config"] == cfg_label]
+        if not cfg_worst:
+            continue
+        avg_svc = sum(r["vehicles_served_pct"] for r in cfg_worst) / len(cfg_worst)
+        cfg_svc[cfg_label] = avg_svc
+        if avg_svc > best_svc:
+            best_svc = avg_svc
+            best_cfg = cfg_label
+
+    # Summary stats for recommended config across ALL days
+    top_rows  = [r for r in all_rows if r["config"] == best_cfg]
+    total_veh = sum(r["n_vehicles"]        for r in top_rows)
     total_svc = sum(r["n_vehicles_served"] for r in top_rows)
-    avg_cost  = sum(r["total_cost"] for r in top_rows) / len(top_rows)
+    avg_cost  = sum(r["total_cost"]        for r in top_rows) / len(top_rows)
 
-    print(f"\n  => Recommended config  : {top_cfg_label}")
-    print(f"    Days selected as optimal: {cfg_counts[top_cfg_label]}/{len(daily_optimal)}")
-    print(f"    Annual vehicle svc rate : {100*total_svc/max(total_veh,1):.1f}%")
-    print(f"    Average daily cost      : ${avg_cost:,.2f}")
+    print(f"\n  => Recommended config  : {best_cfg}")
+    print(f"    Avg vehicle svc on 10 worst days : {best_svc:.1f}%")
+    print(f"    Annual vehicle svc rate (all days): {100*total_svc/max(total_veh,1):.1f}%")
+    print(f"    Average daily cost (all days)     : ${avg_cost:,.2f}")
+    print(f"    10 worst days (by energy demand)  : {', '.join(worst10_dates)}")
+    print(f"\n  Per-config avg vehicle svc on 10 worst days:")
+    for cfg_label in cfg_labels:
+        star = "*" if cfg_label == best_cfg else " "
+        svc  = cfg_svc.get(cfg_label, 0.0)
+        print(f"    {star}{cfg_label:<22} {svc:.1f}%")
 
-    # -- Worst-day ranking under recommended config -----------------------------
-    site_optimal_rows = [r for r in all_rows if r["config"] == top_cfg_label]
-    df_opt = pd.DataFrame(site_optimal_rows).sort_values("total_cost", ascending=False)
-    worst10_dates = df_opt["date"].head(10).tolist()
-
-    # Collect all-config results for those 10 days
-    worst10_all_config: list[dict] = [
-        r for r in all_rows if r["date"] in worst10_dates
-    ]
+    # df_all_days_opt: all days sorted by energy demand, showing recommended config cost
+    df_opt = pd.DataFrame(top_rows).sort_values("energy_demanded_kwh", ascending=False)
 
     return {
         "all_rows":        all_rows,
-        "daily_optimal":   daily_optimal,
         "worst10_dates":   worst10_dates,
-        "worst10_rows":    worst10_all_config,
-        "selected_config": top_cfg_label,
+        "worst10_rows":    worst10_rows,
+        "selected_config": best_cfg,
         "df_all_days_opt": df_opt,
+        "cfg_svc_worst10": cfg_svc,
+        "df_days_ranked":  df_days,
     }
 
 
@@ -613,10 +615,10 @@ def generate_reports(results: dict[str, dict]) -> None:
         print(f"  Saved: {out_txt.name}")
 
         # -- Site summary for cross-site table ---------------------------------
-        n_days = len(res["daily_optimal"])
+        opt_rows_site = [r for r in res["all_rows"]
+                         if r["config"] == res["selected_config"]]
+        n_days = len(opt_rows_site)
         if n_days > 0:
-            opt_rows_site = [r for r in res["all_rows"]
-                             if r["config"] == res["selected_config"]]
             total_veh  = sum(r["n_vehicles"]        for r in opt_rows_site)
             total_svc  = sum(r["n_vehicles_served"] for r in opt_rows_site)
             total_e_d  = sum(r["energy_demanded_kwh"] for r in opt_rows_site)
@@ -638,8 +640,9 @@ def generate_reports(results: dict[str, dict]) -> None:
         print(w10_txt)
 
         # Add to summary
+        util_name = ur.SITE_UTILITY.get(site, "smud").upper()
         summary_lines += [
-            f"  {site_label.upper()} -- {n_days} operating days",
+            f"  {site_label.upper()} -- {n_days} operating days  [utility: {util_name}]",
             f"  Selected config:       {res['selected_config']}",
         ]
         if opt_rows_site:
@@ -743,7 +746,8 @@ def print_final_comparison(results: dict[str, dict]) -> None:
         worst10_rows = res["worst10_rows"]
         selected_cfg = res["selected_config"]
 
-        print(f"\n  {site_label.upper()}  (selected: {selected_cfg})")
+        util_name = ur.SITE_UTILITY.get(site, "smud").upper()
+        print(f"\n  {site_label.upper()}  [{util_name}]  (selected: {selected_cfg})")
         print(f"  {'Configuration':<22} {'Avg Cost':>10} {'Avg Dmnd%':>10}"
               f" {'Avg Veh%':>9} {'Days 100% svc':>14} {'Min Veh%':>9}")
         print(f"  {'-'*80}")

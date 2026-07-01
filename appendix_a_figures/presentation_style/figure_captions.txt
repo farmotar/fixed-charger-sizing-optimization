@@ -1,0 +1,52 @@
+APPENDIX A — SUPPLEMENTAL FIGURE CAPTIONS
+Task 4482 | Mobile DCFC Cost Analysis | Generated 2026-06-30
+================================================================================
+
+[P01_xos_coverage_curves.png]
+Figure P.1. XOS Hub MC02 — K-Sweep Coverage Curves, All Sites (Scenario A). Each curve shows the fraction of operating days that a fixed K-unit deployment can fully serve all arriving vehicles within their dwell windows. The plateau represents the dwell-window ceiling: once K is sufficient to meet power demand, additional units yield no further improvement because the constraint shifts to vehicle dwell time. Glendale plateaus highest (≈90%) indicating well-spaced arrivals; San Diego plateaus lowest (≈24%) indicating chronically short dwell windows.
+
+[P02_xos_grid_profile_4panel.png]
+Figure P.2. XOS Hub MC02 — Annual Grid Power Draw and Energy Profile, All Sites (Scenario A). Line: daily peak grid draw (kW, left axis). Light bars: total grid kWh drawn per day. Dark bars: energy delivered to vehicles per day (right axis). Dashed line: annual mean peak grid draw. San Diego exhibits the highest sustained grid demand (>1,000 kW average) with chronically high vehicle counts; Glendale shows the lightest load profile.
+
+[P03_xos_monthly_k_heatmap.png]
+Figure P.3. XOS Hub MC02 — Monthly Heat Map of Required Daily Hub Count (K), All Sites (Scenario A). Each cell shows how many operating days in a given month required exactly K units. Darker (red) cells indicate more frequent occurrence. San Diego's column is uniformly dark at K=15–20, confirming consistently high demand year-round. Glendale's distribution is concentrated at K=2–5, indicating low and stable demand.
+
+[P04_xos_worst_days_4panel.png]
+Figure P.4. XOS Hub MC02 — Top-10 Highest-Demand Days per Site (Scenario A, sorted by vehicle count). Red bars: total vehicles arriving that day. Green bars: vehicles fully served. Italic percentage labels: fraction of all annual days that the K-value for that day would cover (Shima coverage). Note Northgate and San Diego show significant partially-served vehicles on peak days, while Glendale consistently achieves near-complete service even on its worst days.
+
+[P05_xos_shima_coverage.png]
+Figure P.5. Shima Coverage Analysis — XOS Hub MC02, All Sites (Scenario A). For each of the top-10 worst days (sorted by vehicle count), the bar shows what fraction of ALL operating days that day's K-value would also fully cover. The dashed line is the theoretical maximum (K-sweep ceiling), which cannot be exceeded due to dwell-window constraints. Glendale's worst-day K covers nearly 90% of all days; San Diego's K=20 cap covers only ~24%.
+
+[P06_kmp_charger_mix_northgate.png]
+Figure P.6/N. Kempower Fixed DCFC — Daily Charger-Mix Distribution, Northgate (SMUD). Left: stacked bars show the average number of 50 kW (blue), 150 kW (green), and 250 kW (red) chargers selected per day in each month. Center: histogram of total chargers deployed per day (K). Right: histogram of daily service rate (% vehicles fully charged within dwell window). The MILP consistently selects predominantly 150 kW chargers for the Northgate fleet mix, with 250 kW units added on high-demand days.
+
+[P06_kmp_charger_mix_fresno.png]
+Figure P.6/F. Kempower Fixed DCFC — Daily Charger-Mix Distribution, Fresno (PG&E BEV-2). Left: stacked bars show the average number of 50 kW (blue), 150 kW (green), and 250 kW (red) chargers selected per day in each month. Center: histogram of total chargers deployed per day (K). Right: histogram of daily service rate (% vehicles fully charged within dwell window). The MILP consistently selects predominantly 150 kW chargers for the Northgate fleet mix, with 250 kW units added on high-demand days.
+
+[P07_kmp_service_energy_northgate.png]
+Figure P.7/N. Kempower Fixed DCFC — Annual Service Rate and Energy Profile, Northgate. Top: daily service rate (% vehicles fully charged). Red shading marks days below the annual mean. Bottom: stacked bars showing daily energy delivered to vehicles (green) and energy unmet (red, = energy demanded but not delivered due to dwell-window constraints or charger limits). Unmet energy is small relative to delivered energy in most months, with occasional high-demand days creating larger gaps.
+
+[P07_kmp_service_energy_fresno.png]
+Figure P.7/F. Kempower Fixed DCFC — Annual Service Rate and Energy Profile, Fresno. Top: daily service rate (% vehicles fully charged). Red shading marks days below the annual mean. Bottom: stacked bars showing daily energy delivered to vehicles (green) and energy unmet (red, = energy demanded but not delivered due to dwell-window constraints or charger limits). Unmet energy is small relative to delivered energy in most months, with occasional high-demand days creating larger gaps.
+
+[P08_kmp_cost_power_northgate.png]
+Figure P.8/N. Kempower Fixed DCFC — Annual Daily Cost and Peak Power Profile, Northgate. Top: stacked daily cost bars showing capital amortization (blue), TOU energy cost (green), and amortized demand/subscription charges (pink). Dashed line: annual mean all-in daily cost. Bottom: daily peak grid draw (kW). Demand charges are amortized from monthly totals using 30.42 days/month. High-energy days in summer and April drive peak costs.
+
+[P08_kmp_cost_power_fresno.png]
+Figure P.8/F. Kempower Fixed DCFC — Annual Daily Cost and Peak Power Profile, Fresno. Top: stacked daily cost bars showing capital amortization (blue), TOU energy cost (green), and amortized demand/subscription charges (pink). Dashed line: annual mean all-in daily cost. Bottom: daily peak grid draw (kW). Demand charges are amortized from monthly totals using 30.42 days/month. High-energy days in summer and April drive peak costs.
+
+[P09_kmp_vs_xos_scatter_northgate.png]
+Figure P.9/N. Kempower Fixed DCFC vs. XOS Hub MC02 — Day-by-Day Cost and Service Rate Comparison, Northgate. Left: each point = one operating day; X-axis = XOS all-in daily cost, Y-axis = Kempower all-in daily cost. Points below the dashed equality line indicate Kempower is the lower-cost option that day. Right: analogous comparison for service rate (% vehicles fully charged). Kempower is cheaper on virtually all days due to lower amortized capital cost; XOS achieves higher service rates on some high-demand days thanks to the battery buffer.
+
+[P09_kmp_vs_xos_scatter_fresno.png]
+Figure P.9/F. Kempower Fixed DCFC vs. XOS Hub MC02 — Day-by-Day Cost and Service Rate Comparison, Fresno. Left: each point = one operating day; X-axis = XOS all-in daily cost, Y-axis = Kempower all-in daily cost. Points below the dashed equality line indicate Kempower is the lower-cost option that day. Right: analogous comparison for service rate (% vehicles fully charged). Kempower is cheaper on virtually all days due to lower amortized capital cost; XOS achieves higher service rates on some high-demand days thanks to the battery buffer.
+
+[P10_kmp_worst_days_northgate.png]
+Figure P.10/N. Kempower Fixed DCFC — Top-10 Worst Days by Total Energy Demanded, Northgate. Left: vehicle service breakdown (total / fully served / partial+unserved) on each worst day. Right: stacked cost breakdown by component (CapEx amortization, TOU energy, demand charges). Partially served vehicles on worst days typically have very short dwell windows that cannot be fully met even by the MILP-optimal charger mix.
+
+[P10_kmp_worst_days_fresno.png]
+Figure P.10/F. Kempower Fixed DCFC — Top-10 Worst Days by Total Energy Demanded, Fresno. Left: vehicle service breakdown (total / fully served / partial+unserved) on each worst day. Right: stacked cost breakdown by component (CapEx amortization, TOU energy, demand charges). Partially served vehicles on worst days typically have very short dwell windows that cannot be fully met even by the MILP-optimal charger mix.
+
+[P11_kmp_glendale_summary.png]
+Figure P.11. Kempower Fixed DCFC — Glendale Summary (255 Operating Days). ⚠ CAUTION: all costs use PG&E BEV-2 as a proxy for GWP — actual GWP tariff not yet obtained. Left: daily cost profile (CapEx + energy + demand). Center: distribution of daily charger count K. Right: distribution of daily service rate. Glendale has the lightest demand profile of all four sites, with 1–3 chargers sufficient on most days.
+
