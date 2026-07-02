@@ -1,8 +1,8 @@
-# Fixed DCFC Charger Sizing — Caltrans EV Fleet Study
+# Fixed DCFC Charger Sizing — Caltrans EV Fleet
 
 A Mixed-Integer Linear Programming (MILP) pipeline that sizes fixed DC Fast Chargers at EV fleet maintenance stations. Given real Geotab telematics data, it finds the optimal number and mix of chargers that minimize total daily cost (equipment ownership + utility demand charges + energy) while guaranteeing every vehicle is fully charged before its next shift.
 
-Developed for the **Caltrans EV Fleet Electrification** study, covering four maintenance stations.
+The pipeline covers four Caltrans maintenance stations across three California utility territories. It also produces the per-day event CSV files (`z2z_milp_events_*.csv`) consumed by the companion mobile-DCFC repo.
 
 ---
 
@@ -13,9 +13,10 @@ Developed for the **Caltrans EV Fleet Electrification** study, covering four mai
 | `northgate` | Sacramento, CA | SMUD | C&I 21–299 kW TOU — 2-tier demand charge |
 | `fresno` | Fresno, CA | PG&E | BEV-2 Secondary — subscription demand |
 | `glendale` | Glendale, CA | PG&E BEV-2 *(proxy)* | BEV-2 Secondary — subscription demand |
+| `glendale_smud` | Glendale, CA | SMUD *(sensitivity proxy)* | C&I 21–299 kW TOU — sensitivity run |
 | `san_diego` | San Diego, CA | SDG&E | EV-HP Secondary — subscription demand |
 
-> **Glendale note:** Glendale Water & Power's actual tariff (Schedule LD-2/PC-1) was not available at the time of analysis. PG&E BEV-2 is used as a proxy. Replace with the actual GWP rate when available (call GWP Customer Service at 855-550-4497 or download Schedule LD-2/PC-1 from the GWP website).
+> **Glendale note:** Glendale Water & Power's actual tariff (Schedule LD-2/PC-1) was not available at the time of analysis. PG&E BEV-2 is used as the primary proxy. `glendale_smud` is a separate sensitivity run using SMUD rates on the same vehicle events, providing an upper/lower cost bound. Replace with the actual GWP rate when available (call GWP Customer Service at 855-550-4497 or download Schedule LD-2/PC-1 from the GWP website).
 
 ---
 
@@ -61,7 +62,7 @@ charger_sizing_test/
 ├── ── MAIN PIPELINE ─────────────────────────────────────────────────────────
 │
 ├── run_fixed_charger_milp_pipeline.py   ← START HERE. Runs the full MILP
-│                                           sizing pipeline across all 4 sites
+│                                           sizing pipeline across all sites
 │                                           and all operating days.
 │
 ├── rebuild_worst10_schedules.py         Re-solves the 10 worst days per site
@@ -75,6 +76,9 @@ charger_sizing_test/
 │                                             counts N_c and charging schedule
 │                                             for a single day. Used by the
 │                                             pipeline as an importable module.
+│                                             Also imported directly by the
+│                                             companion mobile-DCFC repo for
+│                                             Kempower sizing.
 │
 ├── scenario_runner.py                   Greedy/heuristic charging simulation
 │                                        (used for fast pre-screening, not
@@ -91,8 +95,9 @@ charger_sizing_test/
 │                               Edit this file to update cost assumptions.
 │
 ├── utility_rates.py            Site-specific TOU energy and demand/subscription
-│                               rate functions for all 4 utilities.
+│                               rate functions for all sites.
 │                               Edit this file to update tariff numbers.
+│                               Also imported by the companion mobile-DCFC repo.
 │
 ├── recalc_site_costs.py        One-off script that recomputes cost summaries
 │                               after updating rates or costs.
@@ -107,21 +112,16 @@ charger_sizing_test/
 ├── build_northgate_representative_day.py   Build a synthetic representative
 │                                            day for testing.
 │
-├── ── SUPPORTING / ONE-OFF SCRIPTS ──────────────────────────────────────────
-│
-│   (XOS Hub and Kempower mobile charger scripts belong in the Task 4482
-│    repository — they are not part of this fixed-charger sizing repo.)
-│
 ├── ── DIAGNOSTICS ───────────────────────────────────────────────────────────
 │
 ├── diagnose_all_sites.py          Cross-site diagnostic checks.
 ├── audit_dispatch_violations.py   Verify no constraint violations in results.
 ├── analyze_time_windows.py        Inspect dwell-window distributions.
 │
-├── ── OUTPUTS (generated, tracked in git) ───────────────────────────────────
+├── ── OUTPUTS ───────────────────────────────────────────────────────────────
 │
 ├── fixed_charger_milp_outputs/
-│   ├── Fixed_Charger_MILP_Results.xlsx        ← Main deliverable
+│   ├── Fixed_Charger_MILP_Results.xlsx        ← Main results workbook
 │   ├── northgate_all_days_milp.csv            All operating days for Northgate
 │   ├── northgate_worst10_schedule.csv         Per-vehicle schedule, 10 worst days
 │   ├── fresno_all_days_milp.csv
@@ -134,7 +134,7 @@ charger_sizing_test/
 │
 ├── appendix_a_figures/
 │   ├── {site}_cost_breakdown.png              Stacked cost bar chart per site
-│   └── {site}_daily_cost.png                  Cost over the analysis year
+│   └── {site}_daily_cost.png                  Daily cost over the analysis year
 │
 ├── ── CONFIGURATION ─────────────────────────────────────────────────────────
 │
@@ -177,7 +177,7 @@ Each row in these CSVs is one vehicle visit with columns:
 
 ## Running the MILP Pipeline
 
-This is the main workflow. It processes all 1,200+ operating days across all 4 sites in about 25 minutes on a modern laptop with Gurobi.
+This is the main workflow. It processes all 1,200+ operating days across all sites in about 25 minutes on a modern laptop with Gurobi.
 
 ```bash
 python run_fixed_charger_milp_pipeline.py
@@ -209,7 +209,7 @@ To change these settings, edit the constants at the top of `run_fixed_charger_mi
 
 ### `Fixed_Charger_MILP_Results.xlsx`
 
-The main deliverable. Sheets:
+The main results workbook. Sheets:
 
 | Sheet | Contents |
 |-------|----------|
@@ -382,7 +382,7 @@ Expected — the pipeline caps state-of-charge at 100% by design. A 15-minute ti
 Close `Fixed_Charger_MILP_Results.xlsx` in Excel before running the pipeline or rebuild script.
 
 **Results look wrong for Glendale**
-Glendale uses PG&E BEV-2 as a proxy rate, not the actual Glendale Water & Power tariff. Cost estimates for Glendale should be treated as approximations only (see note at the top).
+Glendale uses PG&E BEV-2 as a proxy rate, not the actual Glendale Water & Power tariff. Cost estimates for Glendale should be treated as approximations. Run `glendale_smud` for a SMUD-based sensitivity comparison.
 
 ---
 
